@@ -1,44 +1,78 @@
 import { useEffect, useState } from "react";
+import { db } from "../firebase";
+import {
+  collection,
+  addDoc,
+  getDocs,
+  deleteDoc,
+  doc,
+} from "firebase/firestore";
 
 export default function Assignments() {
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState("");
-
-  const [assignments, setAssignments] = useState(() => {
-    const saved = localStorage.getItem("assignments");
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [assignments, setAssignments] = useState([]);
 
   useEffect(() => {
-    localStorage.setItem("assignments", JSON.stringify(assignments));
-  }, [assignments]);
+    const fetchAssignments = async () => {
+      const querySnapshot = await getDocs(collection(db, "assignments"));
 
-  const addAssignment = () => {
+      const assignmentList = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      setAssignments(assignmentList);
+    };
+
+    fetchAssignments();
+  }, []);
+
+  const addAssignment = async () => {
     if (title.trim() === "") return;
 
-    const newAssignment = {
-      id: Date.now(),
+    const docRef = await addDoc(collection(db, "assignments"), {
       title,
       dueDate,
       completed: false,
-    };
+      createdAt: new Date(),
+    });
 
-    setAssignments([...assignments, newAssignment]);
+    setAssignments([
+      ...assignments,
+      {
+        id: docRef.id,
+        title,
+        dueDate,
+        completed: false,
+      },
+    ]);
+
     setTitle("");
     setDueDate("");
   };
 
-  const toggleComplete = (id) => {
-    setAssignments(
-      assignments.map((item) =>
-        item.id === id ? { ...item, completed: !item.completed } : item
-      )
-    );
-  };
+  const toggleComplete = async (id, currentStatus) => {
+  await updateDoc(doc(db, "assignments", id), {
+    completed: !currentStatus,
+  });
 
-  const deleteAssignment = (id) => {
-    setAssignments(assignments.filter((item) => item.id !== id));
-  };
+  setAssignments(
+    assignments.map((item) =>
+      item.id === id
+        ? { ...item, completed: !currentStatus }
+        : item
+    )
+  );
+};
+
+  const deleteAssignment = async (id) => {
+  await deleteDoc(doc(db, "assignments", id));
+
+  setAssignments(
+    assignments.filter((item) => item.id !== id)
+  );
+};
 
   const getStatus = (item) => {
     if (!item.dueDate) {
@@ -57,30 +91,18 @@ export default function Assignments() {
     const diffDays = Math.ceil((due - today) / (1000 * 60 * 60 * 24));
 
     if (diffDays < 0) {
-      return {
-        color: "text-red-600",
-        text: "🔴 Overdue",
-      };
+      return { color: "text-red-600", text: "🔴 Overdue" };
     }
 
     if (diffDays === 0) {
-      return {
-        color: "text-red-600",
-        text: "🔴 Due Today",
-      };
+      return { color: "text-red-600", text: "🔴 Due Today" };
     }
 
     if (diffDays === 1) {
-      return {
-        color: "text-yellow-600",
-        text: "🟡 Due Tomorrow",
-      };
+      return { color: "text-yellow-600", text: "🟡 Due Tomorrow" };
     }
 
-    return {
-      color: "text-green-600",
-      text: "🟢 Future",
-    };
+    return { color: "text-green-600", text: "🟢 Future" };
   };
 
   return (
@@ -140,7 +162,7 @@ export default function Assignments() {
 
               <div className="flex gap-2">
                 <button
-                  onClick={() => toggleComplete(item.id)}
+                  onClick={() => toggleComplete(item.id, item.completed)}
                   className="bg-green-600 text-white px-3 py-1 rounded"
                 >
                   {item.completed ? "Undo" : "Done"}

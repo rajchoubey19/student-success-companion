@@ -1,33 +1,53 @@
 import { useEffect, useState } from "react";
+import { db } from "../firebase";
+import {
+  collection,
+  addDoc,
+  getDocs,
+  deleteDoc,
+  doc,
+  updateDoc,
+} from "firebase/firestore";
 
 export default function Goals() {
   const [goal, setGoal] = useState("");
-
-  const [goals, setGoals] = useState(() => {
-    const saved = localStorage.getItem("goals");
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [goals, setGoals] = useState([]);
 
   useEffect(() => {
-    localStorage.setItem("goals", JSON.stringify(goals));
-  }, [goals]);
+    const fetchGoals = async () => {
+      const querySnapshot = await getDocs(collection(db, "goals"));
 
-  const completedGoals = goals.filter(
-  (goal) => goal.completed
-).length;
+      const goalList = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
 
-const progress =
-  goals.length > 0
-    ? ((completedGoals / goals.length) * 100).toFixed(0)
-    : 0;
+      setGoals(goalList);
+    };
 
-  const addGoal = () => {
+    fetchGoals();
+  }, []);
+
+  const completedGoals = goals.filter((goal) => goal.completed).length;
+
+  const progress =
+    goals.length > 0
+      ? ((completedGoals / goals.length) * 100).toFixed(0)
+      : 0;
+
+  const addGoal = async () => {
     if (goal.trim() === "") return;
+
+    const docRef = await addDoc(collection(db, "goals"), {
+      text: goal,
+      completed: false,
+      createdAt: new Date(),
+    });
 
     setGoals([
       ...goals,
       {
-        id: Date.now(),
+        id: docRef.id,
         text: goal,
         completed: false,
       },
@@ -36,15 +56,22 @@ const progress =
     setGoal("");
   };
 
-  const toggleGoal = (id) => {
-    setGoals(
-      goals.map((item) =>
-        item.id === id ? { ...item, completed: !item.completed } : item
-      )
-    );
-  };
+  const toggleGoal = async (id, currentStatus) => {
+  await updateDoc(doc(db, "goals", id), {
+    completed: !currentStatus,
+  });
 
-  const deleteGoal = (id) => {
+  setGoals(
+    goals.map((item) =>
+      item.id === id
+        ? { ...item, completed: !currentStatus }
+        : item
+    )
+  );
+};
+
+  const deleteGoal = async (id) => {
+    await deleteDoc(doc(db, "goals", id));
     setGoals(goals.filter((item) => item.id !== id));
   };
 
@@ -53,25 +80,21 @@ const progress =
       <h1 className="text-3xl font-bold mb-6">🎯 Daily Goals</h1>
 
       <div className="bg-white p-6 rounded-xl shadow-lg mb-6 max-w-xl">
-  <h2 className="text-xl font-bold mb-2">
-    Goals Progress
-  </h2>
+        <h2 className="text-xl font-bold mb-2">Goals Progress</h2>
 
-  <p className="mb-3">
-    {completedGoals} / {goals.length} Completed
-  </p>
+        <p className="mb-3">
+          {completedGoals} / {goals.length} Completed
+        </p>
 
-  <div className="w-full bg-gray-300 rounded-full h-4">
-    <div
-      className="bg-purple-600 h-4 rounded-full"
-      style={{ width: `${progress}%` }}
-    ></div>
-  </div>
+        <div className="w-full bg-gray-300 rounded-full h-4">
+          <div
+            className="bg-purple-600 h-4 rounded-full"
+            style={{ width: `${progress}%` }}
+          ></div>
+        </div>
 
-  <p className="mt-2 font-semibold">
-    {progress}% Complete
-  </p>
-</div>
+        <p className="mt-2 font-semibold">{progress}% Complete</p>
+      </div>
 
       <div className="bg-white p-6 rounded-xl shadow-lg max-w-xl">
         <input
@@ -106,7 +129,7 @@ const progress =
 
             <div className="flex gap-2">
               <button
-                onClick={() => toggleGoal(item.id)}
+                onClick={() => toggleGoal(item.id, item.completed)}
                 className="bg-green-600 text-white px-3 py-1 rounded"
               >
                 {item.completed ? "Undo" : "Done"}
