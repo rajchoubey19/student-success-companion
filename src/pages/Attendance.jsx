@@ -1,4 +1,14 @@
 import { useEffect, useState } from "react";
+import { db, auth } from "../firebase";
+import {
+  collection,
+  addDoc,
+  getDocs,
+  query,
+  where,
+  updateDoc,
+  doc,
+} from "firebase/firestore";
 
 export default function Attendance() {
   const [totalClasses, setTotalClasses] = useState("");
@@ -22,10 +32,51 @@ if (total > 0 && percentage >= 75) {
   bunkableClasses = Math.floor((attended / 0.75) - total);
 }
 
-  useEffect(() => {
-    localStorage.setItem("attendancePercentage", percentage);
-  }, [percentage]);
+  const [attendanceDocId, setAttendanceDocId] = useState(null);
 
+useEffect(() => {
+  const fetchAttendance = async () => {
+    const q = query(
+      collection(db, "attendance"),
+      where("userId", "==", auth.currentUser.uid)
+    );
+
+    const querySnapshot = await getDocs(q);
+
+    if (!querySnapshot.empty) {
+      const docData = querySnapshot.docs[0].data();
+      setAttendanceDocId(querySnapshot.docs[0].id);
+      setTotalClasses(docData.totalClasses);
+      setAttendedClasses(docData.attendedClasses);
+    }
+  };
+
+  fetchAttendance();
+}, []);
+
+   const saveAttendance = async () => {
+  const attendanceData = {
+    totalClasses,
+    attendedClasses,
+    percentage,
+    userId: auth.currentUser.uid,
+    updatedAt: new Date(),
+  };
+
+  if (attendanceDocId) {
+    await updateDoc(doc(db, "attendance", attendanceDocId), attendanceData);
+  } else {
+    const docRef = await addDoc(
+      collection(db, "attendance"),
+      attendanceData
+    );
+
+    setAttendanceDocId(docRef.id);
+  }
+
+  alert("Attendance saved successfully");
+};
+   
   return (
     <div className="p-6">
       <h1 className="text-3xl font-bold mb-6">📈 Attendance Tracker</h1>
@@ -52,6 +103,13 @@ if (total > 0 && percentage >= 75) {
         <h2 className="text-2xl font-bold text-green-600 mt-6">
           Attendance: {percentage}%
         </h2>
+
+        <button
+  onClick={saveAttendance}
+  className="bg-blue-600 text-white px-4 py-2 rounded-lg mt-4"
+>
+  Save Attendance
+</button>
 
         {totalClasses > 0 && (
           <div className="mt-4">

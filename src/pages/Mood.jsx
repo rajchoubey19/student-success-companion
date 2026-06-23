@@ -1,36 +1,73 @@
 import { useEffect, useState } from "react";
+import { db, auth } from "../firebase";
+import {
+  collection,
+  addDoc,
+  getDocs,
+  deleteDoc,
+  doc,
+  query,
+  where,
+} from "firebase/firestore";
 
 export default function Mood() {
   const [mood, setMood] = useState("");
   const [note, setNote] = useState("");
 
-  const [moodHistory, setMoodHistory] = useState(() => {
-    const saved = localStorage.getItem("moodHistory");
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [moodHistory, setMoodHistory] = useState([]);
 
-  useEffect(() => {
-    localStorage.setItem("moodHistory", JSON.stringify(moodHistory));
-  }, [moodHistory]);
+useEffect(() => {
+  const fetchMoods = async () => {
+    const q = query(
+      collection(db, "moods"),
+      where("userId", "==", auth.currentUser.uid)
+    );
 
-  const addMood = () => {
-    if (mood === "") return;
+    const querySnapshot = await getDocs(q);
 
-    const newMood = {
-      id: Date.now(),
-      mood,
-      note,
-      date: new Date().toLocaleDateString(),
-    };
+    const moodList = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
 
-    setMoodHistory([newMood, ...moodHistory]);
-    setMood("");
-    setNote("");
+    setMoodHistory(moodList);
   };
 
-  const deleteMood = (id) => {
-    setMoodHistory(moodHistory.filter((item) => item.id !== id));
+  fetchMoods();
+}, []);
+
+  const addMood = async () => {
+  if (mood === "") return;
+
+  const newMood = {
+    mood,
+    note,
+    date: new Date().toLocaleDateString(),
+    userId: auth.currentUser.uid,
+    createdAt: new Date(),
   };
+
+  const docRef = await addDoc(collection(db, "moods"), newMood);
+
+  setMoodHistory([
+    {
+      id: docRef.id,
+      ...newMood,
+    },
+    ...moodHistory,
+  ]);
+
+  setMood("");
+  setNote("");
+};
+
+  const deleteMood = async (id) => {
+  await deleteDoc(doc(db, "moods", id));
+
+  setMoodHistory(
+    moodHistory.filter((item) => item.id !== id)
+  );
+};
 
   return (
     <div className="p-6">

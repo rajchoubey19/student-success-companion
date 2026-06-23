@@ -1,3 +1,4 @@
+import { auth } from "../firebase";
 import { useEffect, useState } from "react";
 import { db } from "../firebase";
 import {
@@ -6,6 +7,9 @@ import {
   getDocs,
   deleteDoc,
   doc,
+  updateDoc,
+  query,
+  where,
 } from "firebase/firestore";
 
 export default function Assignments() {
@@ -15,7 +19,12 @@ export default function Assignments() {
 
   useEffect(() => {
     const fetchAssignments = async () => {
-      const querySnapshot = await getDocs(collection(db, "assignments"));
+      const q = query(
+  collection(db, "assignments"),
+  where("userId", "==", auth.currentUser.uid)
+);
+
+const querySnapshot = await getDocs(q);
 
       const assignmentList = querySnapshot.docs.map((doc) => ({
         id: doc.id,
@@ -36,6 +45,7 @@ export default function Assignments() {
       dueDate,
       completed: false,
       createdAt: new Date(),
+      userId: auth.currentUser.uid,
     });
 
     setAssignments([

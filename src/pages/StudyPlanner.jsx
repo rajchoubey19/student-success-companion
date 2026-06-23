@@ -1,28 +1,59 @@
 import { useEffect, useState } from "react";
+import { db, auth } from "../firebase";
+import {
+  collection,
+  addDoc,
+  getDocs,
+  deleteDoc,
+  doc,
+  updateDoc,
+  query,
+  where,
+} from "firebase/firestore";
 
 export default function StudyPlanner() {
   const [time, setTime] = useState("");
   const [task, setTask] = useState("");
-
-  const [plans, setPlans] = useState(() => {
-    const saved = localStorage.getItem("studyPlans");
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [plans, setPlans] = useState([]);
 
   useEffect(() => {
-    localStorage.setItem("studyPlans", JSON.stringify(plans));
-  }, [plans]);
+    const fetchPlans = async () => {
+      const q = query(
+        collection(db, "studyPlans"),
+        where("userId", "==", auth.currentUser.uid)
+      );
 
-  const addPlan = () => {
+      const querySnapshot = await getDocs(q);
+
+      const planList = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      setPlans(planList);
+    };
+
+    fetchPlans();
+  }, []);
+
+  const addPlan = async () => {
     if (time.trim() === "" || task.trim() === "") return;
+
+    const newPlan = {
+      time,
+      task,
+      completed: false,
+      userId: auth.currentUser.uid,
+      createdAt: new Date(),
+    };
+
+    const docRef = await addDoc(collection(db, "studyPlans"), newPlan);
 
     setPlans([
       ...plans,
       {
-        id: Date.now(),
-        time,
-        task,
-        completed: false,
+        id: docRef.id,
+        ...newPlan,
       },
     ]);
 
@@ -30,15 +61,22 @@ export default function StudyPlanner() {
     setTask("");
   };
 
-  const toggleComplete = (id) => {
+  const toggleComplete = async (id, currentStatus) => {
+    await updateDoc(doc(db, "studyPlans", id), {
+      completed: !currentStatus,
+    });
+
     setPlans(
       plans.map((item) =>
-        item.id === id ? { ...item, completed: !item.completed } : item
+        item.id === id
+          ? { ...item, completed: !currentStatus }
+          : item
       )
     );
   };
 
-  const deletePlan = (id) => {
+  const deletePlan = async (id) => {
+    await deleteDoc(doc(db, "studyPlans", id));
     setPlans(plans.filter((item) => item.id !== id));
   };
 
@@ -88,7 +126,7 @@ export default function StudyPlanner() {
 
             <div className="flex gap-2">
               <button
-                onClick={() => toggleComplete(item.id)}
+                onClick={() => toggleComplete(item.id, item.completed)}
                 className="bg-green-600 text-white px-3 py-1 rounded"
               >
                 {item.completed ? "Undo" : "Done"}

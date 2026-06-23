@@ -1,12 +1,95 @@
+import { useEffect, useState } from "react";
+import { db, auth } from "../firebase";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+} from "firebase/firestore";
 import { Link } from "react-router-dom";
 import DashboardCard from "../components/DashboardCard";
 
 export default function Dashboard() {
-  const assignments = JSON.parse(localStorage.getItem("assignments")) || [];
-  const goals = JSON.parse(localStorage.getItem("goals")) || [];
-  const moodHistory = JSON.parse(localStorage.getItem("moodHistory")) || [];
-  const attendance = localStorage.getItem("attendancePercentage") || "0";
-  const studyPlans = JSON.parse(localStorage.getItem("studyPlans")) || [];
+  const [assignments, setAssignments] = useState([]);
+const [goals, setGoals] = useState([]);
+const [moodHistory, setMoodHistory] = useState([]);
+const [studyPlans, setStudyPlans] = useState([]);
+const [attendance, setAttendance] = useState("0");
+
+useEffect(() => {
+  const fetchDashboardData = async () => {
+    const userId = auth.currentUser.uid;
+
+    const assignmentQuery = query(
+      collection(db, "assignments"),
+      where("userId", "==", userId)
+    );
+
+    const goalQuery = query(
+      collection(db, "goals"),
+      where("userId", "==", userId)
+    );
+
+    const moodQuery = query(
+      collection(db, "moods"),
+      where("userId", "==", userId)
+    );
+
+    const studyPlanQuery = query(
+      collection(db, "studyPlans"),
+      where("userId", "==", userId)
+    );
+    
+     const attendanceQuery = query(
+  collection(db, "attendance"),
+  where("userId", "==", userId)
+);
+
+    const assignmentSnapshot = await getDocs(assignmentQuery);
+    const goalSnapshot = await getDocs(goalQuery);
+    const moodSnapshot = await getDocs(moodQuery);
+    const studyPlanSnapshot = await getDocs(studyPlanQuery);
+    const attendanceSnapshot = await getDocs(attendanceQuery);
+
+    setAssignments(
+      assignmentSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+    );
+
+    setGoals(
+      goalSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+    );
+
+    setMoodHistory(
+      moodSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+    );
+
+    setStudyPlans(
+      studyPlanSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+    );
+
+    if (!attendanceSnapshot.empty) {
+  const attendanceData = attendanceSnapshot.docs[0].data();
+
+  setAttendance(
+    attendanceData.percentage || "0"
+  );
+}
+  };
+
+  fetchDashboardData();
+}, []);
 
   const hour = new Date().getHours();
   let greeting = "Good Evening";
